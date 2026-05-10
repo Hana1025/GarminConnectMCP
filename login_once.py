@@ -1,4 +1,4 @@
-"""一次性登录 Garmin Connect，将 token 保存到本地（默认 ~/.garminconnect）。"""
+"""Log in to Garmin Connect once and persist tokens (default: ~/.garminconnect)."""
 
 import os
 import sys
@@ -19,7 +19,7 @@ def main() -> None:
     password = os.environ.get("GARMIN_PASSWORD", "")
     if not email or not password:
         print(
-            "请设置环境变量 GARMIN_EMAIL 与 GARMIN_PASSWORD 后重试。",
+            "Set GARMIN_EMAIL and GARMIN_PASSWORD, then run again.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -31,33 +31,35 @@ def main() -> None:
         mfa_pending, _ = client.login(token_path)
     except GarminConnectTooManyRequestsError as e:
         print(
-            "Garmin 返回频率限制（429），所有登录方式都未成功。\n"
-            "可过 15～60 分钟再试，或换网络/IP（例如手机热点），避免短时间内重复运行登录脚本。",
+            "Garmin rate-limited this IP (429); no login strategy succeeded.\n"
+            "Wait 15–60 minutes, switch networks (e.g. phone hotspot), and avoid "
+            "running the login script in a tight loop.",
             file=sys.stderr,
         )
-        print(f"详情: {e}", file=sys.stderr)
+        print(f"Detail: {e}", file=sys.stderr)
         sys.exit(1)
     except GarminConnectAuthenticationError as e:
-        print(f"账号或验证失败: {e}", file=sys.stderr)
+        print(f"Authentication failed: {e}", file=sys.stderr)
         sys.exit(1)
     except GarminConnectConnectionError as e:
-        print(f"网络或 Garmin 服务异常: {e}", file=sys.stderr)
+        print(f"Network or Garmin service error: {e}", file=sys.stderr)
         sys.exit(1)
 
     if mfa_pending:
         print(
-            "需要完成 MFA（多因素验证）。请在交互式终端按库提示输入验证码，"
-            "或使用支持 MFA 的流程。",
+            "MFA is required. Complete verification in an interactive terminal per "
+            "the library prompts, or use an MFA-capable flow.",
             file=sys.stderr,
         )
         sys.exit(2)
 
-    print("登录成功，token 已保存。")
-    print(f"  目录: {token_path}")
-    print(f"  显示名: {getattr(client, 'display_name', '') or '(未返回)'}")
+    print("Login succeeded; tokens saved.")
+    print(f"  Directory: {token_path}")
+    print(f"  Display name: {getattr(client, 'display_name', '') or '(none)'}")
     print(
-        "\n说明: 日志里若出现「mobile … 429」，表示手机端登录接口被限流；"
-        "库会继续尝试网页等其它方式。只要出现本脚本的「登录成功」，会话一般可用。"
+        "\nNote: Log lines like \"mobile … 429\" mean the mobile login path was "
+        "rate-limited; the client may still succeed via web/portal flows. If this "
+        "script prints success, the session is usually usable."
     )
 
 

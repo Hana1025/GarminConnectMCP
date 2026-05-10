@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Garmin Connect MCP Server — 让 Claude 通过 MCP 访问 Garmin 健康与训练数据。
+Garmin Connect MCP server — exposes health and training data to MCP clients (e.g. Claude).
 """
 
 import json
@@ -13,7 +13,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
 # ============================================================
-# 初始化
+# Setup
 # ============================================================
 
 mcp = FastMCP("garmin_mcp")
@@ -23,7 +23,7 @@ TOKEN_DIR = os.path.expanduser(os.environ.get("GARMIN_TOKEN_DIR", "~/.garminconn
 
 
 def get_client() -> Garmin:
-    """获取或创建 Garmin 客户端（自动处理 token 刷新）。"""
+    """Return a cached Garmin client (handles token refresh)."""
     global _garmin_client
     if _garmin_client is None:
         email = os.environ.get("GARMIN_EMAIL", "")
@@ -34,51 +34,50 @@ def get_client() -> Garmin:
 
 
 def format_date(d: Optional[str] = None) -> str:
-    """将日期字符串标准化，默认返回今天。"""
+    """Normalize date string; default to today."""
     if d is None:
         return date.today().isoformat()
     return d
 
 
 # ============================================================
-# Tool 输入模型
+# Tool input models
 # ============================================================
 
 
 class DateInput(BaseModel):
-    """单日期查询。"""
+    """Single-day query."""
 
     date: Optional[str] = Field(
         default=None,
-        description="日期，格式 YYYY-MM-DD，默认今天",
+        description="Date as YYYY-MM-DD; defaults to today",
     )
 
 
 class ActivitiesInput(BaseModel):
-    """活动列表查询。"""
+    """Activity list query."""
 
-    limit: int = Field(default=20, description="返回活动数量，默认 20", ge=1, le=100)
-    start: int = Field(default=0, description="分页偏移量", ge=0)
+    limit: int = Field(
+        default=20, description="Max activities to return (default 20)", ge=1, le=100
+    )
+    start: int = Field(default=0, description="Pagination offset", ge=0)
 
 
 # ============================================================
-# 健康数据 Tools
+# Health tools
 # ============================================================
 
 
 @mcp.tool(
     name="garmin_daily_summary",
     annotations={
-        "title": "每日健康摘要",
+        "title": "Daily health summary",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_daily_summary(params: DateInput) -> str:
-    """获取指定日期的每日健康摘要。
-
-    包含：步数、卡路里、活动时间、静息心率、压力等。
-    """
+    """Daily health summary for a date (steps, calories, activity, resting HR, stress, etc.)."""
     try:
         client = get_client()
         d = format_date(params.date)
@@ -91,16 +90,13 @@ async def garmin_daily_summary(params: DateInput) -> str:
 @mcp.tool(
     name="garmin_heart_rate",
     annotations={
-        "title": "心率数据",
+        "title": "Heart rate",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_heart_rate(params: DateInput) -> str:
-    """获取指定日期的心率数据。
-
-    包含：静息心率、最高心率、全天心率曲线。
-    """
+    """Heart rate for a date (resting, max, intraday curve)."""
     try:
         client = get_client()
         d = format_date(params.date)
@@ -113,16 +109,13 @@ async def garmin_heart_rate(params: DateInput) -> str:
 @mcp.tool(
     name="garmin_sleep",
     annotations={
-        "title": "睡眠数据",
+        "title": "Sleep",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_sleep(params: DateInput) -> str:
-    """获取指定日期的睡眠数据。
-
-    包含：睡眠时长、深睡/浅睡/REM 分布、睡眠评分。
-    """
+    """Sleep for a night (duration, deep/light/REM, score)."""
     try:
         client = get_client()
         d = format_date(params.date)
@@ -135,13 +128,13 @@ async def garmin_sleep(params: DateInput) -> str:
 @mcp.tool(
     name="garmin_stress",
     annotations={
-        "title": "压力数据",
+        "title": "Stress",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_stress(params: DateInput) -> str:
-    """获取指定日期的压力水平数据。"""
+    """Stress levels for a date."""
     try:
         client = get_client()
         d = format_date(params.date)
@@ -154,16 +147,13 @@ async def garmin_stress(params: DateInput) -> str:
 @mcp.tool(
     name="garmin_hrv",
     annotations={
-        "title": "HRV 心率变异性",
+        "title": "HRV",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_hrv(params: DateInput) -> str:
-    """获取指定日期的 HRV（心率变异性）数据。
-
-    HRV 是评估恢复状态和训练准备度的关键指标。
-    """
+    """Heart rate variability (HRV) for a date — useful for recovery / readiness."""
     try:
         client = get_client()
         d = format_date(params.date)
@@ -176,16 +166,13 @@ async def garmin_hrv(params: DateInput) -> str:
 @mcp.tool(
     name="garmin_body_battery",
     annotations={
-        "title": "Body Battery 身体电量",
+        "title": "Body Battery",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_body_battery(params: DateInput) -> str:
-    """获取指定日期的 Body Battery（身体电量）数据。
-
-    Body Battery 综合 HRV、压力、活动量和睡眠，评估你的能量水平。
-    """
+    """Body Battery for a date (energy estimate from HRV, stress, activity, sleep)."""
     try:
         client = get_client()
         d = format_date(params.date)
@@ -198,16 +185,13 @@ async def garmin_body_battery(params: DateInput) -> str:
 @mcp.tool(
     name="garmin_body_composition",
     annotations={
-        "title": "身体成分",
+        "title": "Body composition",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_body_composition(params: DateInput) -> str:
-    """获取指定日期的身体成分数据。
-
-    包含：体重、体脂率、肌肉量、BMI 等。
-    """
+    """Body composition for a date (weight, body fat, muscle, BMI, etc.)."""
     try:
         client = get_client()
         d = format_date(params.date)
@@ -220,13 +204,13 @@ async def garmin_body_composition(params: DateInput) -> str:
 @mcp.tool(
     name="garmin_training_status",
     annotations={
-        "title": "训练状态",
+        "title": "Training status",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_training_status(params: DateInput) -> str:
-    """获取训练状态和最大摄氧量（VO2 Max）数据。"""
+    """Training status and VO2 Max-related data."""
     try:
         client = get_client()
         d = format_date(params.date)
@@ -239,13 +223,13 @@ async def garmin_training_status(params: DateInput) -> str:
 @mcp.tool(
     name="garmin_max_metrics",
     annotations={
-        "title": "最大指标（VO2Max/体适能年龄）",
+        "title": "Max metrics (VO2 Max / fitness age)",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_max_metrics(params: DateInput) -> str:
-    """获取最大指标数据，包括 VO2 Max 和体适能年龄。"""
+    """Max metrics including VO2 Max and fitness age."""
     try:
         client = get_client()
         d = format_date(params.date)
@@ -256,23 +240,20 @@ async def garmin_max_metrics(params: DateInput) -> str:
 
 
 # ============================================================
-# 训练活动 Tools
+# Activity tools
 # ============================================================
 
 
 @mcp.tool(
     name="garmin_activities",
     annotations={
-        "title": "活动列表",
+        "title": "Activity list",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_activities(params: ActivitiesInput) -> str:
-    """获取最近的训练活动列表。
-
-    包含：活动类型、时间、距离、配速、心率等摘要信息。
-    """
+    """Recent activities (type, time, distance, pace, HR summary)."""
     try:
         client = get_client()
         data = client.get_activities(params.start, params.limit)
@@ -303,16 +284,13 @@ async def garmin_activities(params: ActivitiesInput) -> str:
 @mcp.tool(
     name="garmin_activity_detail",
     annotations={
-        "title": "活动详情",
+        "title": "Activity detail",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_activity_detail(activity_id: str) -> str:
-    """获取单个活动的详细数据。
-
-    需要先用 garmin_activities 获取 activityId。
-    """
+    """Full detail for one activity (use `activityId` from garmin_activities)."""
     try:
         client = get_client()
         data = client.get_activity(activity_id)
@@ -324,13 +302,13 @@ async def garmin_activity_detail(activity_id: str) -> str:
 @mcp.tool(
     name="garmin_activity_splits",
     annotations={
-        "title": "活动分段数据",
+        "title": "Activity splits",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_activity_splits(activity_id: str) -> str:
-    """获取活动的分段/配速数据（如每公里配速）。"""
+    """Splits / pace data for an activity (e.g. per km)."""
     try:
         client = get_client()
         data = client.get_activity_splits(activity_id)
@@ -342,13 +320,13 @@ async def garmin_activity_splits(activity_id: str) -> str:
 @mcp.tool(
     name="garmin_activity_hr_zones",
     annotations={
-        "title": "活动心率区间",
+        "title": "Activity HR zones",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_activity_hr_zones(activity_id: str) -> str:
-    """获取活动的心率区间分布（Zone 1-5 各多长时间）。"""
+    """Time in HR zones (Z1–Z5) for an activity."""
     try:
         client = get_client()
         data = client.get_activity_hr_in_timezones(activity_id)
@@ -358,20 +336,20 @@ async def garmin_activity_hr_zones(activity_id: str) -> str:
 
 
 # ============================================================
-# 综合分析 Tools
+# Combined / misc tools
 # ============================================================
 
 
 @mcp.tool(
     name="garmin_personal_records",
     annotations={
-        "title": "个人记录",
+        "title": "Personal records",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_personal_records(owner_display_name: str) -> str:
-    """获取个人运动记录（PR）。"""
+    """Personal records (PRs) for the given Connect display name."""
     try:
         client = get_client()
         data = client.get_personal_record(owner_display_name)
@@ -383,16 +361,13 @@ async def garmin_personal_records(owner_display_name: str) -> str:
 @mcp.tool(
     name="garmin_race_predictions",
     annotations={
-        "title": "比赛成绩预测",
+        "title": "Race predictions",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_race_predictions() -> str:
-    """获取 Garmin 基于你当前体能的比赛成绩预测。
-
-    包含 5K、10K、半马、全马的预测完赛时间。
-    """
+    """Predicted race times (5K, 10K, half, marathon) from current fitness."""
     try:
         client = get_client()
         data = client.get_race_predictions()
@@ -404,13 +379,13 @@ async def garmin_race_predictions() -> str:
 @mcp.tool(
     name="garmin_devices",
     annotations={
-        "title": "设备信息",
+        "title": "Devices",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_devices() -> str:
-    """获取已连接的 Garmin 设备信息。"""
+    """Paired Garmin devices."""
     try:
         client = get_client()
         data = client.get_devices()
@@ -422,16 +397,13 @@ async def garmin_devices() -> str:
 @mcp.tool(
     name="garmin_weekly_summary",
     annotations={
-        "title": "周训练总结",
+        "title": "Weekly summary",
         "readOnlyHint": True,
         "destructiveHint": False,
     },
 )
 async def garmin_weekly_summary(params: DateInput) -> str:
-    """获取本周训练和健康数据的综合摘要。
-
-    汇总最近 7 天的关键指标：活动总量、平均睡眠、心率趋势等。
-    """
+    """Rolling 7-day summary ending on the given date (stats + recent activities)."""
     try:
         client = get_client()
         end = date.fromisoformat(format_date(params.date))
@@ -489,7 +461,7 @@ async def garmin_weekly_summary(params: DateInput) -> str:
 
 
 # ============================================================
-# 启动服务
+# Entrypoint
 # ============================================================
 
 if __name__ == "__main__":
